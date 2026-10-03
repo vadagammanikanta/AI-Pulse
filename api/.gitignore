@@ -1,0 +1,19 @@
+# Secrets and local environment
+.env
+.env.local
+*.env
+
+# Databases and data
+*.db
+*.db-wal
+*.db-shm
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+env/
+venv/
+*.egg-info/
