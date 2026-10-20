@@ -13,22 +13,34 @@ from __future__ import annotations
 import math
 import re
 from datetime import datetime, timezone
-from typing import Any
 
 from app.config import settings
+
+# Pre-compile keyword patterns for better performance
+_compiled_kw_patterns: list[tuple[str, re.Pattern]] | None = None
 
 
 def extract_matched_keywords(text: str) -> list[str]:
     """Find interest keywords present in text using normalized word boundaries."""
+    global _compiled_kw_patterns
     if not text:
         return []
+
+    # Compile patterns once and reuse them
+    if _compiled_kw_patterns is None:
+        _compiled_kw_patterns = []
+        for kw in settings.interest_keywords:
+            kw_clean = re.sub(r"[-_,\.:;/\\]", " ", kw.lower())
+            pattern = re.compile(r"\b" + re.escape(kw_clean) + r"\b")
+            _compiled_kw_patterns.append((kw, pattern))
+
     text_clean = re.sub(r"[-_,\.:;/\\]", " ", text.lower())
     matched: list[str] = []
-    for kw in settings.interest_keywords:
-        kw_clean = re.sub(r"[-_,\.:;/\\]", " ", kw.lower())
-        pattern = r"\b" + re.escape(kw_clean) + r"\b"
-        if re.search(pattern, text_clean):
+
+    for kw, pattern in _compiled_kw_patterns:
+        if pattern.search(text_clean):
             matched.append(kw)
+
     return matched
 
 
@@ -102,4 +114,3 @@ def apply_arxiv_rule(
         if not matched:
             importance_score = min(importance_score, 60)
     return category, importance_score
-
