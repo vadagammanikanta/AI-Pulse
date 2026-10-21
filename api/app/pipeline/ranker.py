@@ -13,21 +13,34 @@ from __future__ import annotations
 import math
 import re
 from datetime import datetime, timezone
+from functools import lru_cache
 from typing import Any
 
 from app.config import settings
+
+
+@lru_cache(maxsize=1)
+def _compile_individual_patterns(keywords: tuple[str, ...]) -> list[tuple[str, re.Pattern]]:
+    """Compile individual regexes for each keyword to correctly match overlapping terms."""
+    patterns = []
+    for kw in keywords:
+        cleaned = re.sub(r"[-_,\.:;/\\]", " ", kw.lower())
+        pattern = re.compile(r"\b" + re.escape(cleaned) + r"\b")
+        patterns.append((kw, pattern))
+    return patterns
 
 
 def extract_matched_keywords(text: str) -> list[str]:
     """Find interest keywords present in text using normalized word boundaries."""
     if not text:
         return []
+
+    patterns = _compile_individual_patterns(tuple(settings.interest_keywords))
     text_clean = re.sub(r"[-_,\.:;/\\]", " ", text.lower())
+
     matched: list[str] = []
-    for kw in settings.interest_keywords:
-        kw_clean = re.sub(r"[-_,\.:;/\\]", " ", kw.lower())
-        pattern = r"\b" + re.escape(kw_clean) + r"\b"
-        if re.search(pattern, text_clean):
+    for kw, pattern in patterns:
+        if pattern.search(text_clean):
             matched.append(kw)
     return matched
 
