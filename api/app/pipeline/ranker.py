@@ -18,17 +18,47 @@ from typing import Any
 from app.config import settings
 
 
+_CLEAN_RE = re.compile(r"[-_,\.:;/\\]")
+_COMPILED_PATTERNS = None
+_CACHED_KWS_TUPLE = None
+
+def _get_compiled_patterns():
+    """
+    Returns a cached list of compiled regex patterns for settings.interest_keywords.
+    The cache is invalidated and rebuilt automatically if the settings list changes.
+    """
+    global _COMPILED_PATTERNS, _CACHED_KWS_TUPLE
+    current_kws_tuple = tuple(settings.interest_keywords)
+
+    if _COMPILED_PATTERNS is None or _CACHED_KWS_TUPLE != current_kws_tuple:
+        new_patterns = []
+        for kw in settings.interest_keywords:
+            kw_clean = _CLEAN_RE.sub(" ", kw.lower())
+            pattern = re.compile(r"\b" + re.escape(kw_clean) + r"\b")
+            new_patterns.append((kw, pattern))
+
+        # Atomic assignment for thread safety
+        _COMPILED_PATTERNS = new_patterns
+        _CACHED_KWS_TUPLE = current_kws_tuple
+
+    return _COMPILED_PATTERNS
+
 def extract_matched_keywords(text: str) -> list[str]:
-    """Find interest keywords present in text using normalized word boundaries."""
+    """Find interest keywords present in text using normalized word boundaries.
+
+    Performance note: Caches compiled regexes globally instead of recompiling
+    them on every function call. Preserves original overlapping match behavior.
+    """
     if not text:
         return []
-    text_clean = re.sub(r"[-_,\.:;/\\]", " ", text.lower())
-    matched: list[str] = []
-    for kw in settings.interest_keywords:
-        kw_clean = re.sub(r"[-_,\.:;/\\]", " ", kw.lower())
-        pattern = r"\b" + re.escape(kw_clean) + r"\b"
-        if re.search(pattern, text_clean):
+
+    text_clean = _CLEAN_RE.sub(" ", text.lower())
+    matched = []
+
+    for kw, pattern in _get_compiled_patterns():
+        if pattern.search(text_clean):
             matched.append(kw)
+
     return matched
 
 
