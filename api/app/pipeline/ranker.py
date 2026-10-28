@@ -18,16 +18,26 @@ from typing import Any
 from app.config import settings
 
 
+_CLEAN_PATTERN = re.compile(r"[-_,\.:;/\\]")
+_cached_keyword_patterns: list[tuple[str, re.Pattern]] = []
+
 def extract_matched_keywords(text: str) -> list[str]:
     """Find interest keywords present in text using normalized word boundaries."""
+    global _cached_keyword_patterns
+
     if not text:
         return []
-    text_clean = re.sub(r"[-_,\.:;/\\]", " ", text.lower())
+
+    if not _cached_keyword_patterns:
+        _cached_keyword_patterns = [
+            (kw, re.compile(r"\b" + re.escape(_CLEAN_PATTERN.sub(" ", kw.lower())) + r"\b"))
+            for kw in settings.interest_keywords
+        ]
+
+    text_clean = _CLEAN_PATTERN.sub(" ", text.lower())
     matched: list[str] = []
-    for kw in settings.interest_keywords:
-        kw_clean = re.sub(r"[-_,\.:;/\\]", " ", kw.lower())
-        pattern = r"\b" + re.escape(kw_clean) + r"\b"
-        if re.search(pattern, text_clean):
+    for kw, pattern in _cached_keyword_patterns:
+        if pattern.search(text_clean):
             matched.append(kw)
     return matched
 
