@@ -18,16 +18,26 @@ from typing import Any
 from app.config import settings
 
 
+# ⚡ Bolt: Cache regex patterns and clean table for faster performance
+_CLEAN_TRANS = str.maketrans("-_,.:;/\\", "        ")
+_CACHED_REGEXES: list[tuple[str, re.Pattern[str]]] = []
+for kw in settings.interest_keywords:
+    kw_clean = re.sub(r"[-_,\.:;/\\]", " ", kw.lower())
+    pattern = r"\b" + re.escape(kw_clean) + r"\b"
+    _CACHED_REGEXES.append((kw, re.compile(pattern)))
+
 def extract_matched_keywords(text: str) -> list[str]:
     """Find interest keywords present in text using normalized word boundaries."""
     if not text:
         return []
-    text_clean = re.sub(r"[-_,\.:;/\\]", " ", text.lower())
+
+    # ⚡ Bolt: Use translate instead of re.sub for faster replacement
+    text_clean = text.lower().translate(_CLEAN_TRANS)
     matched: list[str] = []
-    for kw in settings.interest_keywords:
-        kw_clean = re.sub(r"[-_,\.:;/\\]", " ", kw.lower())
-        pattern = r"\b" + re.escape(kw_clean) + r"\b"
-        if re.search(pattern, text_clean):
+
+    # ⚡ Bolt: Precompiled patterns avoid repeated regex compilations
+    for kw, regex in _CACHED_REGEXES:
+        if regex.search(text_clean):
             matched.append(kw)
     return matched
 
