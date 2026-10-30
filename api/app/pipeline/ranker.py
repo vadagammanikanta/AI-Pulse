@@ -18,16 +18,31 @@ from typing import Any
 from app.config import settings
 
 
+_PUNCTUATION_TRANS = str.maketrans("-_,.:;/\\", "        ")
+_cached_keyword_regexes: list[tuple[str, re.Pattern]] = []
+
 def extract_matched_keywords(text: str) -> list[str]:
     """Find interest keywords present in text using normalized word boundaries."""
     if not text:
         return []
-    text_clean = re.sub(r"[-_,\.:;/\\]", " ", text.lower())
+
+    # ⚡ Bolt Optimization: Use str.translate instead of re.sub for faster punctuation removal.
+    # We also precompile and cache the regexes for keywords to avoid recompiling on every call.
+    text_clean = text.lower().translate(_PUNCTUATION_TRANS)
+
+    global _cached_keyword_regexes
+    if not _cached_keyword_regexes:
+        compiled_regexes = []
+        for kw in settings.interest_keywords:
+            kw_clean = kw.lower().translate(_PUNCTUATION_TRANS)
+            pattern = r"\b" + re.escape(kw_clean) + r"\b"
+            compiled_regexes.append((kw, re.compile(pattern)))
+        # Atomic assignment prevents race conditions in multithreaded environments
+        _cached_keyword_regexes = compiled_regexes
+
     matched: list[str] = []
-    for kw in settings.interest_keywords:
-        kw_clean = re.sub(r"[-_,\.:;/\\]", " ", kw.lower())
-        pattern = r"\b" + re.escape(kw_clean) + r"\b"
-        if re.search(pattern, text_clean):
+    for kw, regex in _cached_keyword_regexes:
+        if regex.search(text_clean):
             matched.append(kw)
     return matched
 
