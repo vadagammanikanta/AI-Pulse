@@ -1,0 +1,3 @@
+## 2024-05-18 - Fast String Translation & Regex Caching
+**Learning:** For replacing multiple specific characters (like stripping various punctuation marks), `str.translate()` with `str.maketrans()` is significantly faster than using `re.sub()`. Also, precompiling and caching regexes for keyword matching is much faster than doing it repeatedly. In multithreaded Python environments, use atomic list assignments (e.g., `global_list = [...]`) to populate caches safely instead of using `list.append()` inside an `if not list:` block.
+**Action:** Use `str.translate` for simple multi-character replacement instead of regex. Precompile and cache regexes when checking lists of keywords against text strings. Always populate list caches using atomic assignment.
