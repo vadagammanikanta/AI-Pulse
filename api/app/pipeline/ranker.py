@@ -18,16 +18,31 @@ from typing import Any
 from app.config import settings
 
 
+_PUNCTUATION_TRANS = str.maketrans("-_,.:;/\\", "        ")
+_COMPILED_KEYWORDS: list[tuple[str, re.Pattern]] = []
+
+def _get_compiled_keywords() -> list[tuple[str, re.Pattern]]:
+    """Lazily compile keyword regexes to avoid dynamic compilation overhead."""
+    global _COMPILED_KEYWORDS
+    if not _COMPILED_KEYWORDS:
+        compiled = []
+        for kw in settings.interest_keywords:
+            kw_clean = kw.lower().translate(_PUNCTUATION_TRANS)
+            pattern = re.compile(r"\b" + re.escape(kw_clean) + r"\b")
+            compiled.append((kw, pattern))
+        _COMPILED_KEYWORDS = compiled
+    return _COMPILED_KEYWORDS
+
 def extract_matched_keywords(text: str) -> list[str]:
     """Find interest keywords present in text using normalized word boundaries."""
     if not text:
         return []
-    text_clean = re.sub(r"[-_,\.:;/\\]", " ", text.lower())
+    # Performance: use str.translate instead of re.sub for character replacement
+    text_clean = text.lower().translate(_PUNCTUATION_TRANS)
     matched: list[str] = []
-    for kw in settings.interest_keywords:
-        kw_clean = re.sub(r"[-_,\.:;/\\]", " ", kw.lower())
-        pattern = r"\b" + re.escape(kw_clean) + r"\b"
-        if re.search(pattern, text_clean):
+    # Performance: use cached precompiled regexes
+    for kw, pattern in _get_compiled_keywords():
+        if pattern.search(text_clean):
             matched.append(kw)
     return matched
 
