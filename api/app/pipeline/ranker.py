@@ -18,16 +18,32 @@ from typing import Any
 from app.config import settings
 
 
+_PUNCTUATION_TABLE = str.maketrans("-_,.:;/\\", "        ")
+_COMPILED_INTEREST_PATTERNS: list[tuple[str, re.Pattern]] | None = None
+
+def _get_interest_patterns() -> list[tuple[str, re.Pattern]]:
+    global _COMPILED_INTEREST_PATTERNS
+    if _COMPILED_INTEREST_PATTERNS is None:
+        # Optimization: Precompile regexes and cache them using atomic list assignment
+        # Avoid combining into a single alternation pattern to ensure overlapping matches aren't missed.
+        patterns = []
+        for kw in settings.interest_keywords:
+            kw_clean = kw.lower().translate(_PUNCTUATION_TABLE)
+            pattern = re.compile(r"\b" + re.escape(kw_clean) + r"\b")
+            patterns.append((kw, pattern))
+        _COMPILED_INTEREST_PATTERNS = patterns
+    return _COMPILED_INTEREST_PATTERNS
+
 def extract_matched_keywords(text: str) -> list[str]:
     """Find interest keywords present in text using normalized word boundaries."""
     if not text:
         return []
-    text_clean = re.sub(r"[-_,\.:;/\\]", " ", text.lower())
+    # Optimization: str.translate is significantly faster than re.sub for character replacements (~3-10x faster)
+    text_clean = text.lower().translate(_PUNCTUATION_TABLE)
     matched: list[str] = []
-    for kw in settings.interest_keywords:
-        kw_clean = re.sub(r"[-_,\.:;/\\]", " ", kw.lower())
-        pattern = r"\b" + re.escape(kw_clean) + r"\b"
-        if re.search(pattern, text_clean):
+
+    for kw, pattern in _get_interest_patterns():
+        if pattern.search(text_clean):
             matched.append(kw)
     return matched
 

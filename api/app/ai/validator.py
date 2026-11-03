@@ -62,10 +62,13 @@ _STRUCTURAL_PATTERNS: list[tuple[str, str]] = [
 # Helper
 # ---------------------------------------------------------------------------
 
+_PUNCTUATION_TABLE = str.maketrans("-_,.:;/\\", "        ")
+
 def _in_source(term: str, source_text: str, source_text_clean: str) -> bool:
     """Return True if `term` (lowercased) appears in the source text."""
     term_l = term.lower()
-    term_clean = re.sub(r"[-_,\.:;/\\]", " ", term_l).strip()
+    # Optimization: str.translate is significantly faster than re.sub for character replacements (~3-10x faster)
+    term_clean = term_l.translate(_PUNCTUATION_TABLE).strip()
     return term_l in source_text or term_clean in source_text_clean
 
 
@@ -107,7 +110,8 @@ def sanitize_item_output(
         return output, "skipped"
 
     source_text = f"{source_title} {source_excerpt or ''}".lower()
-    source_text_clean = re.sub(r"[-_,\.:;/\\]", " ", source_text)
+    # Optimization: str.translate is significantly faster than re.sub for character replacements (~3-10x faster)
+    source_text_clean = source_text.translate(_PUNCTUATION_TABLE)
 
     # --- Check group 1: install / URL patterns ---
     for label, pattern in _INSTALL_PATTERNS:
