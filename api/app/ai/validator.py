@@ -32,29 +32,30 @@ logger = logging.getLogger(__name__)
 
 # Group 1: Software installation / cloning / URLs
 # Capture group 1 is the entity name when present.
-_INSTALL_PATTERNS: list[tuple[str, str]] = [
-    ("pip_install",     r"\bpip\s+install\s+([a-zA-Z0-9_\-\.]+)"),
-    ("git_clone",       r"\bgit\s+clone\s+([^\s]+)"),
-    ("npm_install",     r"\bnpm\s+install\s+([a-zA-Z0-9_\-\./@]+)"),
-    ("conda_install",   r"\bconda\s+install\s+([a-zA-Z0-9_\-\.]+)"),
-    ("url",             r"\bhttps?://[^\s]+"),
-    ("clone_repo",      r"\bclone\s+(?:the\s+)?([a-zA-Z0-9_\-\./]+)\s+repo"),
-    ("install_package", r"\binstall\s+(?:the\s+)?([a-zA-Z0-9_\-\.]+)\s+package"),
+# ⚡ Bolt: [performance] Precompiled regexes at the module level to save evaluation overhead.
+_INSTALL_PATTERNS: list[tuple[str, re.Pattern]] = [
+    ("pip_install",     re.compile(r"\bpip\s+install\s+([a-zA-Z0-9_\-\.]+)", re.IGNORECASE)),
+    ("git_clone",       re.compile(r"\bgit\s+clone\s+([^\s]+)", re.IGNORECASE)),
+    ("npm_install",     re.compile(r"\bnpm\s+install\s+([a-zA-Z0-9_\-\./@]+)", re.IGNORECASE)),
+    ("conda_install",   re.compile(r"\bconda\s+install\s+([a-zA-Z0-9_\-\.]+)", re.IGNORECASE)),
+    ("url",             re.compile(r"\bhttps?://[^\s]+", re.IGNORECASE)),
+    ("clone_repo",      re.compile(r"\bclone\s+(?:the\s+)?([a-zA-Z0-9_\-\./]+)\s+repo", re.IGNORECASE)),
+    ("install_package", re.compile(r"\binstall\s+(?:the\s+)?([a-zA-Z0-9_\-\.]+)\s+package", re.IGNORECASE)),
 ]
 
 # Group 2: Structural / document artifacts.
 # These are matched as plain substrings (case-insensitive).
 # If found in the lesson text but NOT in the source, the lesson is nulled.
-_STRUCTURAL_PATTERNS: list[tuple[str, str]] = [
-    ("section_number",   r"\bsection\s+\d+"),           # "Section 3", "Section 4.2"
-    ("appendix",         r"\bappendix\b"),
-    ("readme",           r"\breadme\b"),
-    ("getting_started",  r"\bgetting\s+started\b"),
-    ("provided_demo",    r"\bprovided\b"),               # "provided demo", "provided script"
-    ("demo",             r"\bdemo\b"),
-    ("repo",             r"\brepo\b"),
+_STRUCTURAL_PATTERNS: list[tuple[str, re.Pattern]] = [
+    ("section_number",   re.compile(r"\bsection\s+\d+", re.IGNORECASE)),           # "Section 3", "Section 4.2"
+    ("appendix",         re.compile(r"\bappendix\b", re.IGNORECASE)),
+    ("readme",           re.compile(r"\breadme\b", re.IGNORECASE)),
+    ("getting_started",  re.compile(r"\bgetting\s+started\b", re.IGNORECASE)),
+    ("provided_demo",    re.compile(r"\bprovided\b", re.IGNORECASE)),               # "provided demo", "provided script"
+    ("demo",             re.compile(r"\bdemo\b", re.IGNORECASE)),
+    ("repo",             re.compile(r"\brepo\b", re.IGNORECASE)),
     # filenames with common code/data extensions (word boundary before name)
-    ("filename",         r"\b\w[\w\-]*\.(py|ipynb|sh|yaml|yml|json|csv|txt|toml|cfg|ini)\b"),
+    ("filename",         re.compile(r"\b\w[\w\-]*\.(py|ipynb|sh|yaml|yml|json|csv|txt|toml|cfg|ini)\b", re.IGNORECASE)),
 ]
 
 
@@ -62,10 +63,13 @@ _STRUCTURAL_PATTERNS: list[tuple[str, str]] = [
 # Helper
 # ---------------------------------------------------------------------------
 
+_PUNCTUATION_TRANS = str.maketrans("-_,.:;/\\", "        ")
+
 def _in_source(term: str, source_text: str, source_text_clean: str) -> bool:
     """Return True if `term` (lowercased) appears in the source text."""
     term_l = term.lower()
-    term_clean = re.sub(r"[-_,\.:;/\\]", " ", term_l).strip()
+    # ⚡ Bolt: [performance] Replaced `re.sub` with `str.translate` for punctuation removal.
+    term_clean = term_l.translate(_PUNCTUATION_TRANS).strip()
     return term_l in source_text or term_clean in source_text_clean
 
 
@@ -111,7 +115,7 @@ def sanitize_item_output(
 
     # --- Check group 1: install / URL patterns ---
     for label, pattern in _INSTALL_PATTERNS:
-        for match in re.finditer(pattern, lesson, re.IGNORECASE):
+        for match in pattern.finditer(lesson):
             matched_str = match.group(0).lower()
             entity = match.group(1).lower() if match.groups() else matched_str
             if not _in_source(entity, source_text, source_text_clean) and \
@@ -125,7 +129,7 @@ def sanitize_item_output(
 
     # --- Check group 2: structural / document artifact patterns ---
     for label, pattern in _STRUCTURAL_PATTERNS:
-        for match in re.finditer(pattern, lesson, re.IGNORECASE):
+        for match in pattern.finditer(lesson):
             matched_str = match.group(0).lower()
             if not _in_source(matched_str, source_text, source_text_clean):
                 logger.warning(
