@@ -62,10 +62,14 @@ _STRUCTURAL_PATTERNS: list[tuple[str, str]] = [
 # Helper
 # ---------------------------------------------------------------------------
 
+# ⚡ Bolt: Cache translation map for faster punctuation stripping vs re.sub
+_PUNCT_TRANS = str.maketrans("-_,.:;/\\", "        ")
+
 def _in_source(term: str, source_text: str, source_text_clean: str) -> bool:
     """Return True if `term` (lowercased) appears in the source text."""
     term_l = term.lower()
-    term_clean = re.sub(r"[-_,\.:;/\\]", " ", term_l).strip()
+    # ⚡ Bolt: str.translate is significantly faster than re.sub
+    term_clean = term_l.translate(_PUNCT_TRANS).strip()
     return term_l in source_text or term_clean in source_text_clean
 
 
@@ -107,7 +111,8 @@ def sanitize_item_output(
         return output, "skipped"
 
     source_text = f"{source_title} {source_excerpt or ''}".lower()
-    source_text_clean = re.sub(r"[-_,\.:;/\\]", " ", source_text)
+    # ⚡ Bolt: str.translate is significantly faster than re.sub
+    source_text_clean = source_text.translate(_PUNCT_TRANS)
 
     # --- Check group 1: install / URL patterns ---
     for label, pattern in _INSTALL_PATTERNS:
