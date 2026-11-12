@@ -18,16 +18,31 @@ from typing import Any
 from app.config import settings
 
 
+_COMPILED_KEYWORDS_REGEXES: list[tuple[str, re.Pattern[str]]] | None = None
+
+
+def _get_compiled_keywords_regexes() -> list[tuple[str, re.Pattern[str]]]:
+    global _COMPILED_KEYWORDS_REGEXES
+    if _COMPILED_KEYWORDS_REGEXES is None:
+        new_compiled = []
+        for kw in settings.interest_keywords:
+            kw_clean = re.sub(r"[-_,\.:;/\\]", " ", kw.lower())
+            pattern = r"\b" + re.escape(kw_clean) + r"\b"
+            new_compiled.append((kw, re.compile(pattern)))
+        _COMPILED_KEYWORDS_REGEXES = new_compiled
+    return _COMPILED_KEYWORDS_REGEXES
+
+
 def extract_matched_keywords(text: str) -> list[str]:
     """Find interest keywords present in text using normalized word boundaries."""
     if not text:
         return []
     text_clean = re.sub(r"[-_,\.:;/\\]", " ", text.lower())
     matched: list[str] = []
-    for kw in settings.interest_keywords:
-        kw_clean = re.sub(r"[-_,\.:;/\\]", " ", kw.lower())
-        pattern = r"\b" + re.escape(kw_clean) + r"\b"
-        if re.search(pattern, text_clean):
+
+    # ⚡ Bolt: Use precompiled regex patterns from global cache
+    for kw, compiled_pattern in _get_compiled_keywords_regexes():
+        if compiled_pattern.search(text_clean):
             matched.append(kw)
     return matched
 
